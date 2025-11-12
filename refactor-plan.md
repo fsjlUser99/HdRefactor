@@ -11,7 +11,7 @@
 
 ### 1.2 小程序壳子
 
-> 本次重构聚焦 `joymew-h5`，各类小程序壳子将保持现状，仅作为现网流量入口提供参考，不在重构范围内改动。
+> 本次重构聚焦 `joymew-h5`，各类小程序壳子将保持现状，仅作为现网流量入口提供参考，不在重构范围内改动；迁移范围限定为 `joymew-mp` 中现有能力对 H5 的补齐，其他壳子的独有功能暂不处理。
 
 #### 互动主壳 (`joymew-mp`, 覆盖嗨猫/嗨喵/嗨喵跃动)
 - `pages/joymewIndex/joymewIndex.js` 完成扫码/分享进入后的 liveId 解析、签到、强制手机号、身份选择等逻辑，并在完成后跳至 WebView (joymew-mp.md:43066, 36731)。
@@ -20,14 +20,13 @@
 - 包结构：`packageA/B/C` 分别包含红包口袋、照片墙、投诉、协议、外链 WebView 等功能，其中协议/照片墙等已经纯 WebView 嵌入 H5 (joymew-mp.md:5642, 8020)；`packageGame` 仍有喊红包、红包墙、开宝箱等原生小游戏。
 
 #### 婚礼堂壳 (`joymew-mp-hlt`)
-- `app.json` 除主互动页外大量内嵌婚宴预定相关页面，这些页面实际也是 WebView，把 `liveId/token/isHlt/userPhone` 拼到 H5 URL 后加载酒店模块 (joymew-mp-hlt.md:23430)。
-- `browseRecord`、`setIsHlt` 等逻辑保障婚礼堂分店、请柬定制等 BI 需求 (joymew-mp-hlt.md:37134)。
+- 仅作为独立婚礼堂业务入口保留，本次重构不会迁移其特有页面与逻辑；相关 WebView 与埋点改造留待后续专项处理 (joymew-mp-hlt.md:23430, 37134)。
 
 #### 同庆楼壳 (`joymew-mp-tql`)
-- 页面与主壳接近，但裁剪掉部分包体，只保留核心签到、充值、红包墙、酒店预定等能力 (joymew-mp-tql.md:1200)。
+- 继续维持现网裁剪形态，仅为参考渠道，所有定制能力不纳入本次 joymew-mp → joymew-h5 迁移范围 (joymew-mp-tql.md:1200)。
 
 #### 字节/抖音壳 (`joymew-mp-tt`)
-- 页面仅包含入口、直播 WebView 以及婚宴预定，`pages/joymewIndex/joymewIndex.js` 在签到前需要检查/引导关注抖音号并在 `tt.navigateTo` 时跳往 `pages/live/live.ttml` WebView (joymew-mp-tt.md:477, 4487, 5622)。
+- 保留现状以支撑旧渠道流量，重构阶段不再关注其独有流程与页面，后续若有需求将单独立项 (joymew-mp-tt.md:477, 4487, 5622)。
 
 ### 1.3 关键耦合点
 - **Token/Session**：H5 依赖壳子在 URL 中注入 `token/mpType/userPhone`，否则 `axios` 请求直接返回 401 (joymew-h5.md:2748, 2831)。
@@ -61,7 +60,7 @@
 
 ### 阶段 0：盘点与能力矩阵
 - 输出「功能 × 渠道 × 依赖」矩阵，确认哪些依赖 `wx.openChannels`、蓝牙、录音等必须保留壳内；同步标记出所有需完整迁入 H5 的模块（包括具备录音能力的喊红包，参见 `packageGame/pages/shoutHb/modules/game`，joymew-mp.md:43146）。
-- 将 `joymew-mp`、`joymew-mp-hlt`、`joymew-mp-tql`、`joymew-mp-tt` 的差异配置抽象成 JSON（如 `isHlt`、`followAwemeState`、`miniProgramType`），并预留在 H5 `store.app` 中 (joymew-h5.md:7089)。
+- 聚焦 `joymew-mp` 现有配置，将其在壳子中注入的 `sceneType/identitySwitch/miniProgramType` 等字段抽象成 JSON，并预留在 H5 `store.app` 中，其他壳子的专属字段暂不纳入 (joymew-h5.md:7089)。
 
 ### 阶段 1：身份认证改造
 1. **删减小程序入口代码**：移除 `src/utils/requestMp.js`、`wx.miniProgram.*` 分支、`mpType` 判断、`ttjssdk`、抖音 `tt.*` 兼容层等文件，仅保留纯浏览器和微信公众网页的处理，保证代码结构清晰。
@@ -94,8 +93,7 @@
    - 红包墙/开宝箱：与支付联动紧密，优先迁移。
    - 猜红包/争分夺秒：依赖 WebSocket +支付，作为下一批。
    - 喊红包：基于微信网页录音能力重新实现，确保与现有小程序玩法体验一致。
-3. **婚礼堂/酒店预定**：将 `pages/hotelReserve/*` WebView 页直接替换为 H5 内路由，在 H5 `store.app` 中承载 `isHlt` 等参数，并兼容现有壳子通过 URL 传参的方式 (joymew-mp-hlt.md:23430)。
-4. **抖音壳特性**：完全删除 H5 代码中的抖音兼容与 `tt` SDK 逻辑，保留壳子侧既有实现作为历史入口即可。
+3. **抖音壳特性**：完全删除 H5 代码中的抖音兼容与 `tt` SDK 逻辑，保留壳子侧既有实现作为历史入口即可，后续如需抖音能力将另起项目复盘。
 
 ### 阶段 4：H5 体验打磨
 1. **统一导航与状态**：梳理所有 H5 路由的顶部导航、Tab、浮层交互，剔除依赖小程序环境的入口提示，补充纯 H5 的空状态与异常态。
@@ -104,7 +102,7 @@
 
 ### 阶段 5：发布与监控
 - **灰度**：按活动类型/渠道逐步切流，确保 H5 自主登录与支付链路稳定。
-- **埋点/告警**：在 H5 增加登录/支付/游戏等核心指标监控，保持与现有壳子埋点的对齐关系（如 `browseRecord` 的进入/离开事件, joymew-mp-hlt.md:23430），但无需改动壳子代码。
+- **埋点/告警**：在 H5 增加登录/支付/游戏等核心指标监控，保持与 `joymew-mp` 壳子埋点的对齐关系（如 `browseRecord` 的进入/离开事件, joymew-mp.md:18381），但无需改动壳子代码。
 - **开发者体验**：简化本地启动流程，允许独立运行 H5（本地 mock token），并提供命令行脚本模拟壳子注入参数的场景。
 
 #### 模块迁移优先级示例
@@ -115,14 +113,14 @@
 | 支付/充值 | `pages/pay/pay.js` + `api/pay.js` (joymew-mp.md:36731, 32633) | H5 支付 SDK，壳子保留历史 Pay fallback 不改动 | 高风险，需与财务对齐 |
 | 红包口袋 | `packageA/pages/hbkdRecharge` (joymew-mp.md:32370) | 迁入 `views/hbkdRecharge` 并复用新支付 | UI 已有 H5 版本，可复用 |
 | 现场照片/协议等 WebView | `packageC/*` (joymew-mp.md:5642, 8020) | H5 内统一入口，壳子维持现有外链能力 | 低风险 |
-| 婚宴预定 | `pages/hotelReserve/*` (joymew-mp-hlt.md:23430) | H5 模块 + 渠道参数，兼容壳子 URL 传参 | 需保留 `isHlt` |
+| 婚宴预定 | `pages/hotelReserve/*` (joymew-mp-hlt.md:23430) | 维持壳子 WebView 方案，本次迁移不改动，待后续婚礼堂专项评估 | 非 joymew-mp 范畴 |
 | 抖音关注引导 | `joymew-mp-tt` (joymew-mp-tt.md:4487) | H5 下线 `tt` 兼容代码，壳子保持历史实现 | 纯微信 H5 范围内不再维护 |
 | 小游戏 `hmPlay2/5/15/16/30/31` | `getGameInfoByGameCode` (joymew-h5.md:8243) | 逐个重写或保留小程序页 | 涉及资产与特效 |
 
 ## 5. 风险与对策
 1. **支付合规风险**：H5 发起的 JSAPI 需要公众号资质，并区分服务号/小程序；需确认业务主体与支付商户一致。可在小程序壳保留支付兜底，确保审核通过前不放量。
 2. **录音/传感器能力验证**：虽然微信网页已开放录音能力，仍需与后端/运营确认公众号资质、授权范围及上传链路，保障喊红包等语音玩法迁移后的稳定性；如遇极端场景缺乏 API 支撑，再评估兜底方案。
-3. **多渠道差异**：婚礼堂/同庆楼仍有门店、CRM 的定制需求，迁移时要抽象配置并确保历史数据连续。
+3. **多渠道差异**：婚礼堂/同庆楼等壳子保留独立形态，本次仅针对 joymew-mp 公共能力；如需支持其专属需求，将在后续专项中独立梳理。
 4. **历史活动兼容**：部分老活动依赖 `mpType` 等小程序参数区分皮肤，H5 需要在不恢复耦合的前提下提供映射与数据迁移策略。
 5. **包体与审核**：虽不直接改动壳子，但 H5 下线小程序依赖后仍需关注壳子发版节奏，确保保留必要的隐私合规组件（如 `privacyAuthorize`，joymew-mp.md:18370）。
 6. **双容器一致性**：新旧 H5 容器需在配置、静态资源、监控上保持同步，避免出现“同一活动在不同域名体验不一致”或缓存错乱；必要时引入版本号对齐和文件指纹校验。
